@@ -42,6 +42,17 @@
           (dec i)
           (assoc acc z-id (apply ->ZoneState zone-info)))))))
 
+(defn naive-compute-moves
+  "First, capture unoccupied zones, prioritized by platinum production."
+  [plat-info link-info my-id round plat game-state]
+  (reduce
+    (fn [moves [id state]]
+      (if (pos? ((keyword (str "p" id "-count")) state))
+
+        moves))
+    '()
+    game-state))
+
 (defn -main [& args]
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         zone-info (initialize-platinum-info zone-count)
