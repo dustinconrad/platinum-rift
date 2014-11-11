@@ -2,6 +2,18 @@
   (:require [clojure.string :as clj-str])
   (:gen-class))
 
+(defmacro dbg [x]
+  `(let [x# ~x]
+     (binding [*out* *err*]
+       (println "dbg:" '~x "=" x#))
+     x#))
+
+(defmacro dbg-v [x]
+  `(let [x# ~x]
+     (binding [*out* *err*]
+       (println "dbg-v:" x#))
+     x#))
+
 (def pod-price 20)
 
 (defn read-number-input-line []
@@ -45,6 +57,15 @@
           (dec i)
           (assoc acc z-id (apply ->ZoneState z-id zone-info)))))))
 
+(defn zone-comparator [plat-info my-id z1 z2]
+  (let [z1-owner (:owner-id z1)
+        z2-owner (:owner-id z2)]
+    (cond
+      (= z1-owner z2-owner) (compare (plat-info (:zone-id z1)) (plat-info (:zone-id z2)))
+      (and (not= z1-owner my-id) (not= z2-owner my-id)) (compare (plat-info (:zone-id z1)) (plat-info (:zone-id z2)))
+      (= z1-owner my-id) -1
+      (= z2-owner my-id) 1)))
+
 (defn naive-compute-moves
   "Capture zones, prioritized by platinum production."
   [plat-info link-info my-id game-state]
@@ -54,12 +75,12 @@
         (if (pos? my-pods)
           (->> (get link-info id)
                (map game-state)
-               (filter #(not= my-id (:owner-id %)))
-               (max-key (comp plat-info :owner-id))
+               (sort (partial zone-comparator plat-info my-id))
+               first
                :zone-id
                (list my-pods id)
-               (conj moves)))
-        moves))
+               (conj moves))
+          moves)))
     '()
     game-state))
 
@@ -90,22 +111,15 @@
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)]
-    #_(binding [*out* *err*]
-       (println "zone info")
-       (println zone-info)
-       (println)
-       (println "link info")
-       (println link-info)
-       (println))
+
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
             purchases (naive-compute-purchases plat-info platinum game-state)]
 
-        (binding [*out* *err*]
-          (println moves)
-          (println purchases))
+        (dbg moves)
+        (dbg purchases)
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
