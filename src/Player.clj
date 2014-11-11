@@ -117,9 +117,6 @@
             moves (naive-compute-moves plat-info link-info my-id game-state)
             purchases (naive-compute-purchases plat-info  my-id platinum game-state)]
 
-        (dbg moves)
-        (dbg purchases)
-
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
         (println (->purchases-format purchases))))))
