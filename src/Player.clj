@@ -1,6 +1,8 @@
 (ns Player
   (:gen-class))
 
+(def pod-price 20)
+
 (defn read-number-input-line []
   (->> (read-line)
        (re-seq #"\d+")
@@ -30,7 +32,7 @@
   (->> (read-line)
        Integer/parseInt))
 
-(defrecord ZoneState [owner-id p0-count p1-count p2-count p3-count])
+(defrecord ZoneState [zone-id owner-id p0-count p1-count p2-count p3-count])
 
 (defn read-round-game-state [zone-count]
   (loop [i zone-count
@@ -40,18 +42,37 @@
       (let [[z-id & zone-info] (read-number-input-line)]
         (recur
           (dec i)
-          (assoc acc z-id (apply ->ZoneState zone-info)))))))
+          (assoc acc z-id (apply ->ZoneState z-id zone-info)))))))
 
 (defn naive-compute-moves
-  "First, capture unoccupied zones, prioritized by platinum production."
-  [plat-info link-info my-id round plat game-state]
+  "Capture zones, prioritized by platinum production."
+  [plat-info link-info my-id game-state]
   (reduce
     (fn [moves [id state]]
-      (if (pos? ((keyword (str "p" id "-count")) state))
-
+      (let [my-pods ((keyword (str "p" id "-count")) state)]
+        (if (pos? my-pods)
+          (->> (get link-info id)
+               (map game-state)
+               (filter #(not= my-id (:owner-id %)))
+               (max-key (comp plat-info :owner-id))
+               :zone-id
+               (list my-pods id)
+               (conj moves)))
         moves))
     '()
     game-state))
+
+(defn naive-compute-purchases
+  "Prioritize neutral zones"
+  [plat-info my-id plat game-state]
+  (let [pod-cnt (quot plat pod-price)
+        neutral-zones (->> game-state
+                           (filter (comp (partial = -1) :owner-id val))
+                           (sort-by (comp plat-info :zone-id) (comp unchecked-negate compare))
+                           (take pod-cnt))]
+    (if (= pod-cnt neutral-zones)
+      (map #(list 1 (:zone-id %)) neutral-zones)
+      )))
 
 (defn -main [& args]
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
