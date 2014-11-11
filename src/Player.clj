@@ -86,13 +86,13 @@
 
 (defn naive-compute-purchases
   "Prioritize neutral zones"
-  [plat-info plat game-state]
+  [plat-info my-id plat game-state]
   (let [pod-cnt (quot plat pod-price)
-        neutral-zones (->> (vals game-state)
-                           (filter (comp (partial = -1) :owner-id))
-                           (sort-by (comp plat-info :zone-id) (comp unchecked-negate compare))
-                           (take pod-cnt))]
-    (map #(list 1 (:zone-id %)) neutral-zones)))
+        valid-zones (->> (vals game-state)
+                         (filter (comp #(or (= -1 %) (= my-id %)) :owner-id))
+                         (sort (comp unchecked-negate (partial zone-comparator plat-info my-id)))
+                         (take pod-cnt))]
+    (map #(list 1 (:zone-id %)) valid-zones)))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
@@ -115,7 +115,7 @@
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
-            purchases (naive-compute-purchases plat-info platinum game-state)]
+            purchases (naive-compute-purchases plat-info  my-id platinum game-state)]
 
         (dbg moves)
         (dbg purchases)
