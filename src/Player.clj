@@ -1,11 +1,12 @@
 (ns Player
+  (:require [clojure.string :as clj-str])
   (:gen-class))
 
 (def pod-price 20)
 
 (defn read-number-input-line []
   (->> (read-line)
-       (re-seq #"\d+")
+       (re-seq #"-?\d+")
        (map #(Integer/parseInt %))))
 
 (defn initialize-platinum-info [zone-count]
@@ -49,7 +50,7 @@
   [plat-info link-info my-id game-state]
   (reduce
     (fn [moves [id state]]
-      (let [my-pods ((keyword (str "p" id "-count")) state)]
+      (let [my-pods ((keyword (str "p" my-id "-count")) state)]
         (if (pos? my-pods)
           (->> (get link-info id)
                (map game-state)
@@ -64,19 +65,30 @@
 
 (defn naive-compute-purchases
   "Prioritize neutral zones"
-  [plat-info my-id plat game-state]
+  [plat-info plat game-state]
   (let [pod-cnt (quot plat pod-price)
-        neutral-zones (->> game-state
-                           (filter (comp (partial = -1) :owner-id val))
+        neutral-zones (->> (vals game-state)
+                           (filter (comp (partial = -1) :owner-id))
                            (sort-by (comp plat-info :zone-id) (comp unchecked-negate compare))
                            (take pod-cnt))]
-    (if (= pod-cnt neutral-zones)
-      (map #(list 1 (:zone-id %)) neutral-zones)
-      )))
+    (->> (map #(list 1 (:zone-id %)) neutral-zones)
+         (take pod-cnt))))
+
+(defn ->moves-format [moves]
+  (if (empty? moves)
+    "WAIT"
+    (->> (apply concat moves)
+         (clj-str/join " "))))
+
+(defn ->purchases-format [purchases]
+  (if (empty? purchases)
+    "WAIT"
+    (->> (apply concat purchases)
+         (clj-str/join " "))))
 
 (defn -main [& args]
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
-        zone-info (initialize-platinum-info zone-count)
+        plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)]
     #_(binding [*out* *err*]
        (println "zone info")
@@ -87,13 +99,14 @@
        (println))
     (while true
       (let [platinum (read-round-platinum-info)
-            game-state (read-round-game-state zone-count)]
+            game-state (read-round-game-state zone-count)
+            moves (naive-compute-moves plat-info link-info my-id game-state)
+            purchases (naive-compute-purchases plat-info platinum game-state)]
 
         (binding [*out* *err*]
-          (println "game-state")
-          (println game-state)
-          (println))
+          (println moves)
+          (println purchases))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
-        (println "WAIT")
-        (println "1 73")))))
+        (println (->moves-format moves))
+        (println (->purchases-format purchases))))))
