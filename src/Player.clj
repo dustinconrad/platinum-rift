@@ -75,7 +75,7 @@
         (if (pos? my-pods)
           (->> (get link-info id)
                (map game-state)
-               (sort (partial zone-comparator plat-info my-id))
+               (sort (comp unchecked-negate (partial zone-comparator plat-info my-id)))
                first
                :zone-id
                (list my-pods id)
@@ -92,8 +92,7 @@
                            (filter (comp (partial = -1) :owner-id))
                            (sort-by (comp plat-info :zone-id) (comp unchecked-negate compare))
                            (take pod-cnt))]
-    (->> (map #(list 1 (:zone-id %)) neutral-zones)
-         (take pod-cnt))))
+    (map #(list 1 (:zone-id %)) neutral-zones)))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
