@@ -1,5 +1,6 @@
 (ns Player
-  (:require [clojure.string :as clj-str])
+  (:require [clojure.string :as clj-str]
+            [clojure.set :as clj-set])
   (:gen-class))
 
 (defmacro dbg [x]
@@ -94,6 +95,19 @@
                          (take pod-cnt))]
     (map #(list 1 (:zone-id %)) valid-zones)))
 
+(defn frontier-distances [link-info my-id game-state]
+  (loop [n 1
+         acc (->> (vals game-state)
+                  (filter (comp (partial = my-id) :owner-id))
+                  (filter
+                    (fn [{zone-id :zone-id}]
+                      (some
+                        (comp (partial not= my-id) :owner-id)
+                        (map game-state (link-info zone-id)))))
+                  (map #(vector (:zone-id %) n))
+                  (into {}))]
+    acc))
+
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
@@ -116,6 +130,7 @@
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
             purchases (naive-compute-purchases plat-info  my-id platinum game-state)]
+        (dbg (frontier-distances link-info my-id game-state))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
