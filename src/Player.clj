@@ -98,15 +98,57 @@
 (defn frontier-distances [link-info my-id game-state]
   (loop [n 1
          acc (->> (vals game-state)
-                  (filter (comp (partial = my-id) :owner-id))
-                  (filter
-                    (fn [{zone-id :zone-id}]
-                      (some
-                        (comp (partial not= my-id) :owner-id)
-                        (map game-state (link-info zone-id)))))
-                  (map #(vector (:zone-id %) n))
-                  (into {}))]
-    acc))
+                  (filter (comp (partial not= my-id) :owner-id))
+                  (map :zone-id)
+                  (into #{})
+                  (assoc {} 0))]
+    (if-let [n-1 (seq (acc (dec n)))]
+      (let [visited (some->> (vals acc)
+                             (apply concat)
+                             (into #{}))]
+        (->> n-1
+             (mapcat
+               (fn [zone-id]
+                 (->> (link-info zone-id)
+                      (map game-state)
+                      (filter (comp (partial = my-id) :owner-id))
+                      (map :zone-id))))
+             (into #{})
+             (remove visited)
+             (assoc acc n)
+             (recur (inc n))))
+      (reduce
+        (fn [m [d ns]]
+          (->> (map #(vector % d) ns)
+               (into m)))
+        {}
+        acc))))
+
+(defn zone-value [plat-info link-info depth zone-id]
+  (loop [v 0
+         d 0
+         visited #{}
+         q #{zone-id}]
+    (if (> d depth)
+      v
+      (let [modifier (/ (* (inc d) (inc d)))
+            next (-> (mapcat link-info q)
+                     set
+                     (clj-set/difference visited))]
+        (recur
+          ((fnil + 0)
+           (some->> (map plat-info q)
+                    (reduce +)
+                    (* modifier))
+           v)
+          (inc d)
+          (clj-set/union visited q)
+          next)))))
+
+(defn plat-heat-map [plat-info link-info depth]
+  (->> (keys plat-info)
+       (map #(vector % (zone-value plat-info link-info depth %)))
+       (into {})))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
@@ -129,8 +171,9 @@
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
-            purchases (naive-compute-purchases plat-info  my-id platinum game-state)]
-        (dbg (frontier-distances link-info my-id game-state))
+            purchases (naive-compute-purchases plat-info my-id platinum game-state)]
+        (dbg (zone-value plat-info link-info 3 0))
+        (dbg (zone-value plat-info link-info 3 1))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
