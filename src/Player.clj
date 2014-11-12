@@ -150,6 +150,34 @@
        (map #(vector % (zone-value plat-info link-info depth %)))
        (into {})))
 
+(defn halving [n]
+  (cond
+    (>= 0 n) nil
+    (= 1 n) '(1)
+    :else (let [half (if (even? n)
+                       (/ n 2)
+                       (/ (inc n ) 2))]
+            (cons half (lazy-seq (halving (- n half)))))))
+
+(defn compute-moves [plat-info link-info my-id game-state]
+  (let [heat-map (plat-heat-map plat-info link-info 3)
+        frontier-map (frontier-distances link-info my-id game-state)
+        score-fn (fn [zone-id]
+                   (let [distance (frontier-map zone-id)]
+                     (if (<= 1 distance)
+                       (/ distance)
+                       (heat-map zone-id))))
+        move-fn (fn [zone-id]
+                  (dbg zone-id)
+                  (let [pod-cnt ((keyword (str "p" my-id "-count")) (game-state zone-id))
+                        pod-seq (halving pod-cnt)]
+                    (->> (link-info zone-id)
+                         (sort-by score-fn (comp unchecked-negate compare))
+                         (map vector pod-seq (repeat zone-id)))))]
+    (->> (vals game-state)
+         (filter #(pos? ((keyword (str "p" my-id "-count")) %)))
+         (mapcat (comp move-fn :zone-id)))))
+
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
@@ -172,8 +200,10 @@
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
             purchases (naive-compute-purchases plat-info my-id platinum game-state)]
-        (dbg (zone-value plat-info link-info 3 0))
-        (dbg (zone-value plat-info link-info 3 1))
+        (dbg (count (frontier-distances link-info my-id game-state)))
+        (dbg (count game-state))
+        (dbg game-state)
+        (compute-moves plat-info link-info my-id game-state)
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
