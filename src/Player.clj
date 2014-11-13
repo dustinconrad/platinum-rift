@@ -202,6 +202,7 @@
             purchases (naive-compute-purchases plat-info my-id platinum game-state)]
         (dbg (count (frontier-distances link-info my-id game-state)))
         (dbg (count game-state))
+        (dbg (frontier-distances link-info my-id game-state))
         (dbg game-state)
         (compute-moves plat-info link-info my-id game-state)
 
