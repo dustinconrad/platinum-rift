@@ -16,6 +16,7 @@
      x#))
 
 (def pod-price 20)
+(def neutral-zone-owner-id -1)
 
 (defn read-number-input-line []
   (->> (read-line)
@@ -159,13 +160,15 @@
                        (/ (inc n ) 2))]
             (cons half (lazy-seq (halving (- n half)))))))
 
-(defn compute-moves [plat-info link-info my-id game-state]
-  (let [frontier-map (frontier-distances link-info my-id game-state)
-        score-fn (fn [zone-id]
-                   (let [distance (get frontier-map zone-id Integer/MAX_VALUE)]
-                     (if (<= 1 distance)
-                       (/ distance)
-                       (plat-info zone-id))))
+(defn create-score-fn [zone-vals frontier-map]
+  (fn [zone-id]
+    (let [distance (get frontier-map zone-id Integer/MAX_VALUE)]
+      (if (<= 1 distance)
+        (/ distance)
+        (zone-vals zone-id)))))
+
+(defn compute-moves [plat-info link-info my-id game-state frontier-map]
+  (let [score-fn (create-score-fn plat-info frontier-map)
         move-fn (fn [zone-id]
                   (let [pod-cnt ((keyword (str "p" my-id "-count")) (game-state zone-id))
                         pod-seq (halving pod-cnt)]
@@ -175,6 +178,16 @@
     (->> (vals game-state)
          (filter #(pos? ((keyword (str "p" my-id "-count")) %)))
          (mapcat (comp move-fn :zone-id)))))
+
+(defn compute-purchases [plat-info my-id plat game-state frontier-map]
+  (let [pod-cnt (quot plat pod-price)
+        score-fn (create-score-fn plat-info frontier-map)]
+    (->> (vals game-state)
+         (filter (comp #(or (= my-id %) (= neutral-zone-owner-id %)) :owner-id))
+         (map :zone-id)
+         (sort-by score-fn (comp unchecked-negate compare))
+         (take (quot pod-cnt 2))
+         (map #(vector 2 %)))))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
@@ -197,8 +210,9 @@
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
-            moves (compute-moves plat-vals link-info my-id game-state)
-            purchases (naive-compute-purchases plat-vals my-id platinum game-state)]
+            frontier-map (frontier-distances link-info my-id game-state)
+            moves (compute-moves plat-vals link-info my-id game-state frontier-map)
+            purchases (compute-purchases plat-vals my-id platinum game-state frontier-map)]
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
