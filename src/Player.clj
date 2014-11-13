@@ -163,12 +163,11 @@
   (let [heat-map (plat-heat-map plat-info link-info 3)
         frontier-map (frontier-distances link-info my-id game-state)
         score-fn (fn [zone-id]
-                   (let [distance (frontier-map zone-id)]
+                   (let [distance (get frontier-map zone-id Integer/MAX_VALUE)]
                      (if (<= 1 distance)
                        (/ distance)
                        (heat-map zone-id))))
         move-fn (fn [zone-id]
-                  (dbg zone-id)
                   (let [pod-cnt ((keyword (str "p" my-id "-count")) (game-state zone-id))
                         pod-seq (halving pod-cnt)]
                     (->> (link-info zone-id)
@@ -200,10 +199,7 @@
             game-state (read-round-game-state zone-count)
             moves (naive-compute-moves plat-info link-info my-id game-state)
             purchases (naive-compute-purchases plat-info my-id platinum game-state)]
-        (dbg (count (frontier-distances link-info my-id game-state)))
-        (dbg (count game-state))
-        (dbg (frontier-distances link-info my-id game-state))
-        (dbg game-state)
+
         (compute-moves plat-info link-info my-id game-state)
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
