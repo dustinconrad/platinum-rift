@@ -160,13 +160,12 @@
             (cons half (lazy-seq (halving (- n half)))))))
 
 (defn compute-moves [plat-info link-info my-id game-state]
-  (let [heat-map (plat-heat-map plat-info link-info 3)
-        frontier-map (frontier-distances link-info my-id game-state)
+  (let [frontier-map (frontier-distances link-info my-id game-state)
         score-fn (fn [zone-id]
                    (let [distance (get frontier-map zone-id Integer/MAX_VALUE)]
                      (if (<= 1 distance)
                        (/ distance)
-                       (heat-map zone-id))))
+                       (plat-info zone-id))))
         move-fn (fn [zone-id]
                   (let [pod-cnt ((keyword (str "p" my-id "-count")) (game-state zone-id))
                         pod-seq (halving pod-cnt)]
@@ -192,15 +191,14 @@
 (defn -main [& args]
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
-        link-info (initialize-link-info link-count)]
+        link-info (initialize-link-info link-count)
+        plat-vals (plat-heat-map plat-info link-info 3)]
 
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
-            moves (naive-compute-moves plat-info link-info my-id game-state)
-            purchases (naive-compute-purchases plat-info my-id platinum game-state)]
-
-        (compute-moves plat-info link-info my-id game-state)
+            moves (compute-moves plat-vals link-info my-id game-state)
+            purchases (naive-compute-purchases plat-vals my-id platinum game-state)]
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
