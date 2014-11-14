@@ -59,43 +59,6 @@
           (dec i)
           (assoc acc z-id (apply ->ZoneState z-id zone-info)))))))
 
-(defn zone-comparator [plat-info my-id z1 z2]
-  (let [z1-owner (:owner-id z1)
-        z2-owner (:owner-id z2)]
-    (cond
-      (= z1-owner z2-owner) (compare (plat-info (:zone-id z1)) (plat-info (:zone-id z2)))
-      (and (not= z1-owner my-id) (not= z2-owner my-id)) (compare (plat-info (:zone-id z1)) (plat-info (:zone-id z2)))
-      (= z1-owner my-id) -1
-      (= z2-owner my-id) 1)))
-
-(defn naive-compute-moves
-  "Capture zones, prioritized by platinum production."
-  [plat-info link-info my-id game-state]
-  (reduce
-    (fn [moves [id state]]
-      (let [my-pods ((keyword (str "p" my-id "-count")) state)]
-        (if (pos? my-pods)
-          (->> (get link-info id)
-               (map game-state)
-               (sort (comp unchecked-negate (partial zone-comparator plat-info my-id)))
-               first
-               :zone-id
-               (list my-pods id)
-               (conj moves))
-          moves)))
-    '()
-    game-state))
-
-(defn naive-compute-purchases
-  "Prioritize neutral zones"
-  [plat-info my-id plat game-state]
-  (let [pod-cnt (quot plat pod-price)
-        valid-zones (->> (vals game-state)
-                         (filter (comp #(or (= -1 %) (= my-id %)) :owner-id))
-                         (sort (comp unchecked-negate (partial zone-comparator plat-info my-id)))
-                         (take pod-cnt))]
-    (map #(list 1 (:zone-id %)) valid-zones)))
-
 (defn frontier-distances [link-info my-id game-state]
   (loop [n 1
          acc (->> (vals game-state)
