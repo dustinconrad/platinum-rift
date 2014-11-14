@@ -90,7 +90,7 @@
         {}
         acc))))
 
-(defn zone-value [plat-info link-info depth zone-id]
+(defn base-zone-value [plat-info link-info depth zone-id]
   (loop [v 0
          d 0
          visited #{}
@@ -111,9 +111,9 @@
           (clj-set/union visited q)
           next)))))
 
-(defn plat-heat-map [plat-info link-info depth]
+(defn zone-value-map [plat-info link-info depth]
   (->> (keys plat-info)
-       (map #(vector % (zone-value plat-info link-info depth %)))
+       (map #(vector % (base-zone-value plat-info link-info depth %)))
        (into {})))
 
 (defn halving [n]
@@ -148,28 +148,31 @@
 
         :else (/ (inc distance))))))
 
-(defn compute-moves [plat-info link-info my-id game-state frontier-map]
-  (let [score-fn (create-score-fn plat-info link-info my-id game-state frontier-map)
-        move-fn (fn [zone-id]
+(defn compute-moves [link-info my-id game-state live-zone-values]
+  (let [move-fn (fn [zone-id]
                   (let [pod-cnt (get-in game-state [zone-id :pod-cnts my-id])
-                        current-val (score-fn zone-id)
+                        current-val (live-zone-values zone-id)
                         pod-seq (halving pod-cnt)]
                     (->> (link-info zone-id)
-                         (sort-by score-fn (comp unchecked-negate compare))
-                         (take-while #(<= current-val (score-fn %)))
+                         (sort-by live-zone-values (comp unchecked-negate compare))
+                         (take-while #(<= current-val (live-zone-values %)))
                          (map vector pod-seq (repeat zone-id)))))]
     (->> (vals game-state)
          (filter #(pos? (get-in % [:pod-cnts my-id])))
          (mapcat (comp move-fn :zone-id)))))
 
-(defn compute-purchases [plat-info link-info my-id plat game-state frontier-map]
+(defn live-zone-values [base-zone-values link-info my-id game-state frontier-map]
+  (let [score-fn (create-score-fn base-zone-values link-info my-id game-state frontier-map)]
+    (->> (map (juxt identity score-fn) (keys game-state))
+         (into {}))))
+
+(defn compute-purchases [link-info my-id plat game-state live-zone-values]
   (let [pod-cnt (quot plat pod-price)
-        score-fn (create-score-fn plat-info link-info my-id game-state frontier-map)
         purchases (quot pod-cnt 1)]
     (->> (vals game-state)
          (filter (comp #(or (= my-id %) (= neutral-zone-owner-id %)) :owner-id))
          (map :zone-id)
-         (sort-by score-fn (comp unchecked-negate compare))
+         (sort-by live-zone-values (comp unchecked-negate compare))
          (take purchases)
          (map #(vector (quot pod-cnt purchases) %)))))
 
@@ -189,14 +192,15 @@
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)
-        plat-vals (plat-heat-map plat-info link-info 3)]
+        plat-vals (zone-value-map plat-info link-info 3)]
 
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
-            moves (compute-moves plat-vals link-info my-id game-state frontier-map)
-            purchases (compute-purchases plat-vals link-info my-id platinum game-state frontier-map)]
+            zone-values (live-zone-values plat-vals link-info my-id game-state frontier-map)
+            moves (compute-moves link-info my-id game-state zone-values)
+            purchases (compute-purchases link-info my-id platinum game-state zone-values)]
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
