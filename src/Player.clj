@@ -125,18 +125,22 @@
                        (/ (inc n) 2))]
             (cons half (lazy-seq (halving (- n half)))))))
 
+(defn adjacent-enemies [link-info my-id game-state zone-id]
+  (if-let [result (some->> (link-info zone-id)
+                           (map game-state)
+                           (map #(dissoc (:pod-cnts %) my-id))
+                           (mapcat vals)
+                           (reduce +))]
+    result
+    0))
+
 (defn create-score-fn [zone-vals link-info my-id game-state frontier-map]
   (fn [zone-id]
-    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))
-          enemy-adjacent (some->> (link-info zone-id)
-                                  (map game-state)
-                                  (map #(dissoc (:pod-cnts %) my-id))
-                                  (mapcat vals)
-                                  (reduce +))]
+    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))]
       (cond
         (< 1 distance) (/ (inc distance))
         (zero? distance) (+ 51/100 (zone-vals zone-id))
-        (pos? enemy-adjacent) (+ 51/100 (zone-vals zone-id))
+        (pos? (adjacent-enemies link-info my-id game-state zone-id)) (+ 51/100 (zone-vals zone-id))
         :else (/ (inc distance))))))
 
 (defn compute-moves [plat-info link-info my-id game-state frontier-map]
