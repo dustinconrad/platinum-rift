@@ -47,17 +47,19 @@
   (->> (read-line)
        Integer/parseInt))
 
-(defrecord ZoneState [zone-id owner-id p0-count p1-count p2-count p3-count])
+(defrecord ZoneState [zone-id owner-id pod-cnts])
 
 (defn read-round-game-state [zone-count]
   (loop [i zone-count
          acc {}]
     (if (zero? i)
       acc
-      (let [[z-id & zone-info] (read-number-input-line)]
+      (let [[z-id owner-id & pod-info] (read-number-input-line)
+            pod-map (zipmap (range 4)
+                            pod-info)]
         (recur
           (dec i)
-          (assoc acc z-id (apply ->ZoneState z-id zone-info)))))))
+          (assoc acc z-id (->ZoneState z-id owner-id pod-map)))))))
 
 (defn frontier-distances [link-info my-id game-state]
   (loop [n 1
@@ -120,31 +122,40 @@
     (= 1 n) '(1)
     :else (let [half (if (even? n)
                        (/ n 2)
-                       (/ (inc n ) 2))]
+                       (/ (inc n) 2))]
             (cons half (lazy-seq (halving (- n half)))))))
 
-(defn create-score-fn [zone-vals frontier-map]
+(defn create-score-fn [zone-vals link-info my-id game-state frontier-map]
   (fn [zone-id]
-    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))]
-      (if (<= 1 distance)
-        (/ (inc distance))
-        (+ 51/100 (zone-vals zone-id))))))
+    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))
+          enemy-adjacent (some->> (link-info zone-id)
+                                  (map game-state)
+                                  (map #(dissoc (:pod-cnts %) my-id))
+                                  (mapcat vals)
+                                  (reduce +))]
+      (cond
+        (< 1 distance) (/ (inc distance))
+        (zero? distance) (+ 51/100 (zone-vals zone-id))
+        (pos? enemy-adjacent) (+ 51/100 (zone-vals zone-id))
+        :else (/ (inc distance))))))
 
 (defn compute-moves [plat-info link-info my-id game-state frontier-map]
-  (let [score-fn (create-score-fn plat-info frontier-map)
+  (let [score-fn (create-score-fn plat-info link-info my-id game-state frontier-map)
         move-fn (fn [zone-id]
-                  (let [pod-cnt ((keyword (str "p" my-id "-count")) (game-state zone-id))
+                  (let [pod-cnt (get-in game-state [zone-id :pod-cnts my-id])
+                        current-val (score-fn zone-id)
                         pod-seq (halving pod-cnt)]
                     (->> (link-info zone-id)
                          (sort-by score-fn (comp unchecked-negate compare))
+                         (take-while #(<= current-val (score-fn %)))
                          (map vector pod-seq (repeat zone-id)))))]
     (->> (vals game-state)
-         (filter #(pos? ((keyword (str "p" my-id "-count")) %)))
+         (filter #(pos? (get-in % [:pod-cnts my-id])))
          (mapcat (comp move-fn :zone-id)))))
 
-(defn compute-purchases [plat-info my-id plat game-state frontier-map]
+(defn compute-purchases [plat-info link-info my-id plat game-state frontier-map]
   (let [pod-cnt (quot plat pod-price)
-        score-fn (create-score-fn plat-info frontier-map)
+        score-fn (create-score-fn plat-info link-info my-id game-state frontier-map)
         purchases (quot pod-cnt 1)]
     (->> (vals game-state)
          (filter (comp #(or (= my-id %) (= neutral-zone-owner-id %)) :owner-id))
@@ -176,7 +187,7 @@
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
             moves (compute-moves plat-vals link-info my-id game-state frontier-map)
-            purchases (compute-purchases plat-vals my-id platinum game-state frontier-map)]
+            purchases (compute-purchases plat-vals link-info my-id platinum game-state frontier-map)]
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
