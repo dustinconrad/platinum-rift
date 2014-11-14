@@ -189,7 +189,7 @@
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)
-        plat-vals (plat-heat-map plat-info link-info 2)]
+        plat-vals (plat-heat-map plat-info link-info 3)]
 
     (while true
       (let [platinum (read-round-platinum-info)
