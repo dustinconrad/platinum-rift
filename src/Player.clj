@@ -130,7 +130,7 @@
                            (map game-state)
                            (map #(dissoc (:pod-cnts %) my-id))
                            (mapcat vals)
-                           (reduce +))]
+                           (apply max))]
     result
     0))
 
@@ -143,7 +143,7 @@
         (< 1 distance) (/ (inc distance))
         (zero? distance) (+ 51/100 (zone-vals zone-id))
 
-        (and (pos? enemies) (<= my-pods (+ enemies 3)))
+        (and (pos? enemies) (<= my-pods enemies))
         (+ 51/100 (zone-vals zone-id))
 
         :else (/ (inc distance))))))
