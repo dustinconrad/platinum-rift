@@ -136,11 +136,16 @@
 
 (defn create-score-fn [zone-vals link-info my-id game-state frontier-map]
   (fn [zone-id]
-    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))]
+    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))
+          enemies (adjacent-enemies link-info my-id game-state zone-id)
+          my-pods (get-in game-state [zone-id :pod-cnts my-id])]
       (cond
         (< 1 distance) (/ (inc distance))
         (zero? distance) (+ 51/100 (zone-vals zone-id))
-        (pos? (adjacent-enemies link-info my-id game-state zone-id)) (+ 51/100 (zone-vals zone-id))
+
+        (and (pos? enemies) (<= my-pods enemies))
+        (+ 51/100 (zone-vals zone-id))
+
         :else (/ (inc distance))))))
 
 (defn compute-moves [plat-info link-info my-id game-state frontier-map]
