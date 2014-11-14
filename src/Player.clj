@@ -125,10 +125,10 @@
 
 (defn create-score-fn [zone-vals frontier-map]
   (fn [zone-id]
-    (let [distance (get frontier-map zone-id Integer/MAX_VALUE)]
+    (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))]
       (if (<= 1 distance)
-        (/ distance)
-        (zone-vals zone-id)))))
+        (/ (inc distance))
+        (+ 51/100 (zone-vals zone-id))))))
 
 (defn compute-moves [plat-info link-info my-id game-state frontier-map]
   (let [score-fn (create-score-fn plat-info frontier-map)
@@ -144,13 +144,14 @@
 
 (defn compute-purchases [plat-info my-id plat game-state frontier-map]
   (let [pod-cnt (quot plat pod-price)
-        score-fn (create-score-fn plat-info frontier-map)]
+        score-fn (create-score-fn plat-info frontier-map)
+        purchases (quot pod-cnt 1)]
     (->> (vals game-state)
          (filter (comp #(or (= my-id %) (= neutral-zone-owner-id %)) :owner-id))
          (map :zone-id)
          (sort-by score-fn (comp unchecked-negate compare))
-         (take (quot pod-cnt 2))
-         (map #(vector 2 %)))))
+         (take purchases)
+         (map #(vector (quot pod-cnt purchases) %)))))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
@@ -168,7 +169,7 @@
   (let [[playerCount my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)
-        plat-vals (plat-heat-map plat-info link-info 3)]
+        plat-vals (plat-heat-map plat-info link-info 2)]
 
     (while true
       (let [platinum (read-round-platinum-info)
