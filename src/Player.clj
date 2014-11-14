@@ -143,7 +143,7 @@
         (< 1 distance) (/ (inc distance))
         (zero? distance) (+ 51/100 (zone-vals zone-id))
 
-        (and (pos? enemies) (<= my-pods enemies))
+        (and (pos? enemies) (<= my-pods (+ enemies 3)))
         (+ 51/100 (zone-vals zone-id))
 
         :else (/ (inc distance))))))
