@@ -148,6 +148,23 @@
 
         :else (/ (inc distance))))))
 
+(defn allocate-moves [live-zone-values pod-cnt possible-moves]
+  (let [max-moves-cnt (min pod-cnt (count possible-moves))
+        trimmed-moves (->> (sort-by live-zone-values (comp unchecked-negate compare) possible-moves)
+                           (take max-moves-cnt))
+        trimmed-moves-sum (reduce #(+ %1 (live-zone-values %2)) 0 trimmed-moves)]
+    (loop [rem-pods pod-cnt
+           [m & ms :as all-moves] trimmed-moves
+           committed-moves '()]
+      (if (or (empty? all-moves) (<= rem-pods 0))
+        committed-moves
+        (let [allocated (min (int (inc (* rem-pods (/ (live-zone-values m) trimmed-moves-sum))))
+                             rem-pods)]
+          (recur
+            (- rem-pods allocated)
+            ms
+            (conj committed-moves (list allocated m))))))))
+
 (defn compute-moves [link-info my-id game-state live-zone-values]
   (let [move-fn (fn [zone-id]
                   (let [pod-cnt (get-in game-state [zone-id :pod-cnts my-id])
