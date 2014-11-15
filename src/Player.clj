@@ -165,14 +165,14 @@
             ms
             (conj committed-moves (list allocated m))))))))
 
-(defn compute-moves [link-info my-id game-state live-zone-values]
+(defn compute-moves [link-info my-id game-state zone-values]
   (let [move-fn (fn [zone-id]
                   (let [pod-cnt (get-in game-state [zone-id :pod-cnts my-id])
-                        current-val (live-zone-values zone-id)
+                        current-val (zone-values zone-id)
                         pod-seq (halving pod-cnt)]
                     (->> (link-info zone-id)
-                         (sort-by live-zone-values (comp unchecked-negate compare))
-                         (take-while #(<= current-val (live-zone-values %)))
+                         (sort-by zone-values (comp unchecked-negate compare))
+                         (take-while #(<= current-val (zone-values %)))
                          (map vector pod-seq (repeat zone-id)))))]
     (->> (vals game-state)
          (filter #(pos? (get-in % [:pod-cnts my-id])))
