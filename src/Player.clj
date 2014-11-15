@@ -138,10 +138,14 @@
   (fn [zone-id]
     (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))
           enemies (adjacent-enemies link-info my-id game-state zone-id)
-          my-pods (get-in game-state [zone-id :pod-cnts my-id])]
+          my-pods (get-in game-state [zone-id :pod-cnts my-id])
+          multiplier (if (and (apply = 0 (vals (get-in game-state [zone-id :pod-cnts])))
+                              (pos? (get-in game-state [zone-id :owner-id])))
+                       2
+                       1)]
       (cond
         (< 1 distance) (/ (inc distance))
-        (zero? distance) (+ 51/100 (zone-vals zone-id))
+        (zero? distance) (* multiplier (+ 51/100 (zone-vals zone-id)))
 
         (and (pos? enemies) (<= my-pods enemies))
         (+ 51/100 (zone-vals zone-id))
