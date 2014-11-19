@@ -112,6 +112,36 @@
         {}
         acc))))
 
+(defn contiguous-zone [link-info game-state zone-id]
+  (let [owner-id (get-in game-state [zone-id :owner-id])
+        owner-pred (fn [z-id]
+                     (= owner-id
+                        (get-in game-state [z-id :owner-id])))]
+    (loop [visited #{}
+           q (conj (clojure.lang.PersistentQueue/EMPTY) zone-id)
+           acc #{}]
+      (if (empty? q)
+        acc
+        (let [z-id (peek q)
+              new-zones (->> (link-info z-id)
+                             (filter owner-pred)
+                             (remove visited))]
+          (recur
+            (conj visited z-id)
+            (into (pop q) new-zones)
+            (conj acc z-id)))))))
+
+(defn contiguous-zones [link-info game-state]
+  (loop [remaining-zones (set (keys link-info))
+         acc #{}]
+    (if (empty? remaining-zones)
+      acc
+      (let [z (first remaining-zones)
+            contiguous-area (contiguous-zone link-info game-state z)]
+        (recur
+          (disj (clj-set/difference remaining-zones contiguous-area) z)
+          (conj acc contiguous-area))))))
+
 (defn base-zone-value [plat-info link-info depth zone-id]
   (loop [v 0
          d 0
@@ -125,10 +155,10 @@
                      (clj-set/difference visited))]
         (recur
           ((fnil + 0)
-           (some->> (map plat-info q)
-                    (reduce +)
-                    (* modifier))
-           v)
+            (some->> (map plat-info q)
+                     (reduce +)
+                     (* modifier))
+            v)
           (inc d)
           (clj-set/union visited q)
           next)))))
@@ -245,7 +275,9 @@
             moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
 
-        (dbg (compute-player-states plat-info game-state))
+        #_(dbg (compute-player-states plat-info game-state))
+
+        (dbg (contiguous-zones link-info game-state))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
