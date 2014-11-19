@@ -225,6 +225,15 @@
       players
       incomes)))
 
+(defn player-moves-for-zone [link-info player-id game-state zone-id]
+  (let [zone-owner (get-in game-state [zone-id :owner-id])
+        neighbors (link-info zone-id)]
+    (cond
+      (= zone-owner player-id) ())))
+
+(defn player-moves [link-info player-id game-state]
+  )
+
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
