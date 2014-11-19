@@ -17,6 +17,7 @@
 
 (def pod-price 20)
 (def neutral-zone-owner-id -1)
+(def starting-platinum 200)
 
 (defn read-number-input-line []
   (->> (read-line)
@@ -197,6 +198,33 @@
          (take purchases)
          (map #(vector (quot pod-cnt purchases) %)))))
 
+(defrecord PlayerState [id platinum])
+
+(defn new-player-state [player-count initial-platinum]
+  (->> (range player-count)
+       (map #(vector % (->PlayerState % initial-platinum)))
+       (into {})))
+
+(defn- platinum-incomes [plat-info game-state]
+  (reduce
+    (fn [acc {:keys [owner-id zone-id]}]
+      (let [zone-income (plat-info zone-id)]
+        (update-in acc [owner-id] (fnil + 0) zone-income)))
+    {}
+    (vals game-state)))
+
+(defn distribute-platinum [plat-info players game-state]
+  (let [incomes (remove (comp (partial = neutral-zone-owner-id) key) (platinum-incomes plat-info game-state))]
+    (reduce
+      (fn [acc [player-id income]]
+        (update-in
+          acc
+          [player-id :platinum]
+          +
+          income))
+      players
+      incomes)))
+
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
@@ -210,18 +238,25 @@
          (clj-str/join " "))))
 
 (defn -main [& args]
-  (let [[playerCount my-id zone-count link-count] (read-number-input-line)
+  (let [[player-count my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
         link-info (initialize-link-info link-count)
-        plat-vals (zone-value-map plat-info link-info 3)]
+        player-state (atom (new-player-state player-count starting-platinum))
+        update-player-state-fn (partial distribute-platinum plat-info)]
 
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
-            zone-values (live-zone-values plat-vals link-info my-id game-state frontier-map)
+            zone-values (live-zone-values plat-info link-info my-id game-state frontier-map)
             moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
+
+        #_(dbg (distribute-platinum plat-info @player-state game-state))
+
+        (swap! player-state update-player-state-fn game-state)
+        (dbg @player-state)
+
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
