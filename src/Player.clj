@@ -51,6 +51,8 @@
 
 (defrecord PlayerState [id zone-count income total-pods])
 
+(defrecord ContiguousArea [owner-id zone-ids])
+
 (defn read-round-game-state [zone-count]
   (loop [i zone-count
          acc {}]
@@ -121,7 +123,7 @@
            q (conj (clojure.lang.PersistentQueue/EMPTY) zone-id)
            acc #{}]
       (if (empty? q)
-        acc
+        (->ContiguousArea owner-id acc)
         (let [z-id (peek q)
               new-zones (->> (link-info z-id)
                              (filter owner-pred)
@@ -139,7 +141,7 @@
       (let [z (first remaining-zones)
             contiguous-area (contiguous-zone link-info game-state z)]
         (recur
-          (disj (clj-set/difference remaining-zones contiguous-area) z)
+          (disj (clj-set/difference remaining-zones (:zone-ids contiguous-area)) z)
           (conj acc contiguous-area))))))
 
 (defn base-zone-value [plat-info link-info depth zone-id]
