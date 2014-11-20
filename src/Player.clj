@@ -24,6 +24,8 @@
 (defrecord Purchase [pods-count zone-destination])
 (defrecord PlayerState [id platinum])
 
+;BEGIN READ INPUT
+
 (defn read-number-input-line []
   (->> (read-line)
        (re-seq #"-?\d+")
@@ -64,6 +66,8 @@
         (recur
           (dec i)
           (assoc acc z-id (->ZoneState z-id owner-id pod-map)))))))
+
+;END READ INPUT
 
 (defn frontier-distances [link-info my-id game-state]
   (loop [n 1
@@ -201,64 +205,6 @@
          (take purchases)
          (map #(->Purchase (quot pod-cnt purchases) %)))))
 
-(defn new-player-state [player-count initial-platinum]
-  (->> (range player-count)
-       (map #(vector % (->PlayerState % initial-platinum)))
-       (into {})))
-
-(defn- platinum-incomes [plat-info game-state]
-  (reduce
-    (fn [acc {:keys [owner-id zone-id]}]
-      (let [zone-income (plat-info zone-id)]
-        (update-in acc [owner-id] (fnil + 0) zone-income)))
-    {}
-    (vals game-state)))
-
-(defn distribute-platinum [plat-info players game-state]
-  (let [incomes (remove (comp (partial = neutral-zone-owner-id) key) (platinum-incomes plat-info game-state))]
-    (reduce
-      (fn [acc [player-id income]]
-        (update-in
-          acc
-          [player-id :platinum]
-          +
-          income))
-      players
-      incomes)))
-
-(defn random-pod-partitions [pod-count max-partitions]
-  (loop [rem-n pod-count
-         acc '()]
-    (cond
-      (zero? rem-n) acc
-      (= (dec max-partitions) (count acc)) (shuffle (conj acc rem-n))
-      :else (let [next-n (inc (rand-int rem-n))]
-              (recur
-                (- rem-n next-n)
-                (conj acc next-n))))))
-
-(defn random-moves-for-zone [link-info player-id game-state zone-id]
-  (let [zone-owner (get-in game-state [zone-id :owner-id])
-        player-pods (get-in game-state [zone-id :pod-counts player-id])
-        zone-filter (if (= zone-owner player-id)
-                      identity
-                      #(or (= (:owner-id %) neutral-zone-owner-id)
-                           (= (:owner-id %) player-id)))
-        filtered-zones (->> (conj (link-info zone-id) zone-id)
-                            (map game-state)
-                            (filter zone-filter)
-                            (map :zone-id))]
-    (->> (random-pod-partitions player-pods (count filtered-zones))
-         (map #(->Move %2 zone-id %1) (shuffle filtered-zones))
-         (remove #(= (:zone-destination %) zone-id)))))
-
-(defn random-player-moves [link-info player-id game-state]
-  (->> (keys link-info)
-       (map game-state)
-       (filter #(= player-id (:owner-id %)))
-       (mapcat
-         #(random-moves-for-zone link-info player-id game-state (:zone-id %)))))
-
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
@@ -278,20 +224,15 @@
 (defn -main [& args]
   (let [[player-count my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
-        link-info (initialize-link-info link-count)
-        player-state (atom (new-player-state player-count starting-platinum))
-        update-player-state-fn (partial distribute-platinum plat-info)]
+        link-info (initialize-link-info link-count)]
 
     (while true
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
             zone-values (live-zone-values plat-info link-info my-id game-state frontier-map)
-            moves (random-player-moves link-info my-id game-state)
+            moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
-
-        (swap! player-state update-player-state-fn game-state)
-        (dbg moves)
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
