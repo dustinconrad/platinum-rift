@@ -21,6 +21,7 @@
 
 (defrecord ZoneState [zone-id owner-id pod-counts])
 (defrecord Move [pods-count zone-origin zone-destination])
+(defrecord Purchase [pods-count zone-destination])
 (defrecord PlayerState [id platinum])
 
 (defn read-number-input-line []
@@ -198,7 +199,7 @@
          (map :zone-id)
          (sort-by live-zone-values (comp unchecked-negate compare))
          (take purchases)
-         (map #(vector (quot pod-cnt purchases) %)))))
+         (map #(->Purchase (quot pod-cnt purchases) %)))))
 
 (defn new-player-state [player-count initial-platinum]
   (->> (range player-count)
@@ -269,7 +270,9 @@
 (defn ->purchases-format [purchases]
   (if (empty? purchases)
     "WAIT"
-    (->> (apply concat purchases)
+    (->> purchases
+         (map (juxt :pods-count :zone-destination))
+         (map (partial clj-str/join " "))
          (clj-str/join " "))))
 
 (defn -main [& args]
@@ -289,7 +292,6 @@
 
         (swap! player-state update-player-state-fn game-state)
         (dbg moves)
-
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
