@@ -48,7 +48,7 @@
   (->> (read-line)
        Integer/parseInt))
 
-(defrecord ZoneState [zone-id owner-id pod-cnts])
+(defrecord ZoneState [zone-id owner-id pod-counts])
 
 (defn read-round-game-state [zone-count]
   (loop [i zone-count
@@ -129,7 +129,7 @@
 (defn adjacent-enemies [link-info my-id game-state zone-id]
   (if-let [result (some->> (link-info zone-id)
                            (map game-state)
-                           (map #(dissoc (:pod-cnts %) my-id))
+                           (map #(dissoc (:pod-counts %) my-id))
                            (mapcat vals)
                            (apply max))]
     result
@@ -139,8 +139,8 @@
   (fn [zone-id]
     (let [distance (get frontier-map zone-id (dec Integer/MAX_VALUE))
           enemies (adjacent-enemies link-info my-id game-state zone-id)
-          my-pods (get-in game-state [zone-id :pod-cnts my-id])
-          multiplier (if (and (apply = 0 (vals (get-in game-state [zone-id :pod-cnts])))
+          my-pods (get-in game-state [zone-id :pod-counts my-id])
+          multiplier (if (and (apply = 0 (vals (get-in game-state [zone-id :pod-counts])))
                               (pos? (get-in game-state [zone-id :owner-id])))
                        2
                        1)]
@@ -172,7 +172,7 @@
 
 (defn compute-moves [link-info my-id game-state zone-values]
   (let [move-fn (fn [zone-id]
-                  (let [pod-cnt (get-in game-state [zone-id :pod-cnts my-id])
+                  (let [pod-cnt (get-in game-state [zone-id :pod-counts my-id])
                         current-val (zone-values zone-id)
                         pod-seq (halving pod-cnt)]
                     (->> (link-info zone-id)
@@ -180,7 +180,7 @@
                          (take-while #(<= current-val (zone-values %)))
                          (map vector pod-seq (repeat zone-id)))))]
     (->> (vals game-state)
-         (filter #(pos? (get-in % [:pod-cnts my-id])))
+         (filter #(pos? (get-in % [:pod-counts my-id])))
          (mapcat (comp move-fn :zone-id)))))
 
 (defn live-zone-values [base-zone-values link-info my-id game-state frontier-map]
@@ -225,14 +225,39 @@
       players
       incomes)))
 
-(defn player-moves-for-zone [link-info player-id game-state zone-id]
-  (let [zone-owner (get-in game-state [zone-id :owner-id])
-        neighbors (link-info zone-id)]
+(defn random-pod-partitions [pod-count max-partitions]
+  (loop [rem-n pod-count
+         acc '()]
     (cond
-      (= zone-owner player-id) ())))
+      (zero? rem-n) acc
+      (= (dec max-partitions) (count acc)) (shuffle (conj acc rem-n))
+      :else (let [next-n (inc (rand-int rem-n))]
+              (recur
+                (- rem-n next-n)
+                (conj acc next-n))))))
 
-(defn player-moves [link-info player-id game-state]
-  )
+(defrecord Move [pods-count zone-origin zone-destination])
+
+(defn random-moves-for-zone [link-info player-id game-state zone-id]
+  (let [zone-owner (get-in game-state [zone-id :owner-id])
+        player-pods (get-in game-state [zone-id :pods-count player-id])
+        zone-filter (if (= zone-owner player-id)
+                      identity
+                      #(or (= (:owner-id %) neutral-zone-owner-id)
+                           (= (:owner-id %) player-id)))
+        filtered-zones (->> (conj zone-id (link-info zone-id))
+                            (map game-state)
+                            (filter zone-filter))]
+    (->> (random-pod-partitions player-pods (count filtered-zones))
+         (map #(->Move %2 zone-id %1) (shuffle filtered-zones))
+         (remove #(= (:zone-destination %) zone-id)))))
+
+(defn random-player-moves [link-info player-id game-state]
+  (->> (keys link-info)
+       (map game-state)
+       (filter #(= player-id (:owner-id %)))
+       (mapcat
+         #(random-moves-for-zone link-info player-id game-state (:zone-id %)))))
 
 (defn ->moves-format [moves]
   (if (empty? moves)
