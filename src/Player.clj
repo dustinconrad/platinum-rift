@@ -238,14 +238,15 @@
 
 (defn random-moves-for-zone [link-info player-id game-state zone-id]
   (let [zone-owner (get-in game-state [zone-id :owner-id])
-        player-pods (get-in game-state [zone-id :pods-count player-id])
+        player-pods (get-in game-state [zone-id :pod-counts player-id])
         zone-filter (if (= zone-owner player-id)
                       identity
                       #(or (= (:owner-id %) neutral-zone-owner-id)
                            (= (:owner-id %) player-id)))
-        filtered-zones (->> (conj zone-id (link-info zone-id))
+        filtered-zones (->> (conj (link-info zone-id) zone-id)
                             (map game-state)
-                            (filter zone-filter))]
+                            (filter zone-filter)
+                            (map :zone-id))]
     (->> (random-pod-partitions player-pods (count filtered-zones))
          (map #(->Move %2 zone-id %1) (shuffle filtered-zones))
          (remove #(= (:zone-destination %) zone-id)))))
@@ -283,13 +284,11 @@
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
             zone-values (live-zone-values plat-info link-info my-id game-state frontier-map)
-            moves (compute-moves link-info my-id game-state zone-values)
+            moves (random-player-moves link-info my-id game-state)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
 
-        #_(dbg (distribute-platinum plat-info @player-state game-state))
-
         (swap! player-state update-player-state-fn game-state)
-        (dbg @player-state)
+        (dbg moves)
 
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
