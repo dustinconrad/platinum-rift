@@ -69,6 +69,26 @@
 
 ;END READ INPUT
 
+;BEGIN OUTPUT FUNCTIONS
+
+(defn ->moves-format [moves]
+  (if (empty? moves)
+    "WAIT"
+    (->> moves
+         (map (juxt :pods-count :zone-origin :zone-destination))
+         (map (partial clj-str/join " "))
+         (clj-str/join " "))))
+
+(defn ->purchases-format [purchases]
+  (if (empty? purchases)
+    "WAIT"
+    (->> purchases
+         (map (juxt :pods-count :zone-destination))
+         (map (partial clj-str/join " "))
+         (clj-str/join " "))))
+
+;END OUTPUT FUNCTIONS
+
 (defn frontier-distances [link-info my-id game-state]
   (loop [n 1
          acc (->> (vals game-state)
@@ -204,22 +224,6 @@
          (sort-by live-zone-values (comp unchecked-negate compare))
          (take purchases)
          (map #(->Purchase (quot pod-cnt purchases) %)))))
-
-(defn ->moves-format [moves]
-  (if (empty? moves)
-    "WAIT"
-    (->> moves
-         (map (juxt :pods-count :zone-origin :zone-destination))
-         (map (partial clj-str/join " "))
-         (clj-str/join " "))))
-
-(defn ->purchases-format [purchases]
-  (if (empty? purchases)
-    "WAIT"
-    (->> purchases
-         (map (juxt :pods-count :zone-destination))
-         (map (partial clj-str/join " "))
-         (clj-str/join " "))))
 
 (defn -main [& args]
   (let [[player-count my-id zone-count link-count] (read-number-input-line)
