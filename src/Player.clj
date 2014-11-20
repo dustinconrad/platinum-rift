@@ -19,6 +19,10 @@
 (def neutral-zone-owner-id -1)
 (def starting-platinum 200)
 
+(defrecord ZoneState [zone-id owner-id pod-counts])
+(defrecord Move [pods-count zone-origin zone-destination])
+(defrecord PlayerState [id platinum])
+
 (defn read-number-input-line []
   (->> (read-line)
        (re-seq #"-?\d+")
@@ -47,8 +51,6 @@
 (defn read-round-platinum-info []
   (->> (read-line)
        Integer/parseInt))
-
-(defrecord ZoneState [zone-id owner-id pod-counts])
 
 (defn read-round-game-state [zone-count]
   (loop [i zone-count
@@ -178,7 +180,7 @@
                     (->> (link-info zone-id)
                          (sort-by zone-values (comp unchecked-negate compare))
                          (take-while #(<= current-val (zone-values %)))
-                         (map vector pod-seq (repeat zone-id)))))]
+                         (map #(->Move %1 %2 %3) pod-seq (repeat zone-id)))))]
     (->> (vals game-state)
          (filter #(pos? (get-in % [:pod-counts my-id])))
          (mapcat (comp move-fn :zone-id)))))
@@ -197,8 +199,6 @@
          (sort-by live-zone-values (comp unchecked-negate compare))
          (take purchases)
          (map #(vector (quot pod-cnt purchases) %)))))
-
-(defrecord PlayerState [id platinum])
 
 (defn new-player-state [player-count initial-platinum]
   (->> (range player-count)
@@ -236,8 +236,6 @@
                 (- rem-n next-n)
                 (conj acc next-n))))))
 
-(defrecord Move [pods-count zone-origin zone-destination])
-
 (defn random-moves-for-zone [link-info player-id game-state zone-id]
   (let [zone-owner (get-in game-state [zone-id :owner-id])
         player-pods (get-in game-state [zone-id :pods-count player-id])
@@ -262,7 +260,9 @@
 (defn ->moves-format [moves]
   (if (empty? moves)
     "WAIT"
-    (->> (apply concat moves)
+    (->> moves
+         (map (juxt :pods-count :zone-origin :zone-destination))
+         (map (partial clj-str/join " "))
          (clj-str/join " "))))
 
 (defn ->purchases-format [purchases]
