@@ -263,10 +263,13 @@
         set
         (clj-set/difference zones))))
 
-(defn contiguous-area-ttz [link-info game-state {:keys [zone-ids] :as area}]
+(defn contiguous-area-minimum-ttz [link-info game-state {:keys [zone-ids] :as area}]
   (let [perimeter (contiguous-area-perimeter link-info area)
         enemy-perimeter (->> perimeter
                              (filter #(not= neutral-zone-owner-id (get-in game-state [% :owner-id])))
+                             (filter
+                               #(let [owner-id (get-in game-state [% :owner-id])]
+                                 (pos? (get-in game-state [% :pod-counts owner-id]))))
                              set)
         neutral-perimeter (clj-set/difference perimeter enemy-perimeter)]
     (loop [n 2
@@ -324,7 +327,7 @@
 
         (let [area (first (contiguous-areas link-info game-state))]
           (dbg area)
-          (dbg (contiguous-area-ttz link-info game-state area)))
+          (dbg (contiguous-area-minimum-ttz link-info game-state area)))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
