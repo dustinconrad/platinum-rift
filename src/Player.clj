@@ -18,6 +18,7 @@
 (def pod-price 20)
 (def neutral-zone-owner-id -1)
 (def starting-platinum 200)
+(def max-rounds 200)
 
 (defrecord ZoneState [zone-id owner-id pod-counts])
 (defrecord Move [pods-count zone-origin zone-destination])
@@ -132,10 +133,10 @@
                      (clj-set/difference visited))]
         (recur
           ((fnil + 0)
-            (some->> (map plat-info q)
-                     (reduce +)
-                     (* modifier))
-            v)
+           (some->> (map plat-info q)
+                    (reduce +)
+                    (* modifier))
+           v)
           (inc d)
           (clj-set/union visited q)
           next)))))
@@ -292,22 +293,24 @@
                acc)
              (into {}))))))
 
-(defn contiguous-area-score [plat-info link-info game-state contiguous-area]
-  (let [income (->> (map plat-info (:zone-ids contiguous-area))
-                    (reduce + 0))
-        area (count (:zone-ids contiguous-area))
-        perimeter (max 1/2 (count (contiguous-area-perimeter link-info contiguous-area)))]
-    (+ income
-       (/ area perimeter))))
+(defn contiguous-area-score [plat-info link-info round game-state {:keys [zone-ids] :as area}]
+  (let [max-future-rounds 7
+        income-zones (filter #(pos? (get plat-info %)) zone-ids)
+        min-ttzs (contiguous-area-minimum-ttz link-info game-state area)]
+    (->> (map
+           #(* (get plat-info %)
+               (min (or (get min-ttzs %) Integer/MAX_VALUE) (- max-rounds round) max-future-rounds))
+           income-zones)
+         (reduce + 0))))
 
-(defn player-scores [plat-info link-info game-state]
+(defn player-scores [plat-info link-info round game-state]
   (let [scores (reduce
                  (fn [acc {:keys [owner-id] :as area}]
                    (update-in
                      acc
                      [owner-id]
                      (fnil + 0)
-                     (contiguous-area-score plat-info link-info game-state area)))
+                     (contiguous-area-score plat-info link-info round game-state area)))
                  {}
                  (remove #(= neutral-zone-owner-id (:owner-id %)) (contiguous-areas link-info game-state)))]
     scores))
@@ -315,9 +318,11 @@
 (defn -main [& args]
   (let [[player-count my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
-        link-info (initialize-link-info link-count)]
+        link-info (initialize-link-info link-count)
+        round (atom 0)]
 
     (while true
+      (swap! round inc)
       (let [platinum (read-round-platinum-info)
             game-state (read-round-game-state zone-count)
             frontier-map (frontier-distances link-info my-id game-state)
@@ -325,9 +330,7 @@
             moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
 
-        (let [area (first (contiguous-areas link-info game-state))]
-          (dbg area)
-          (dbg (contiguous-area-minimum-ttz link-info game-state area)))
+        (dbg (player-scores plat-info link-info @round game-state))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
