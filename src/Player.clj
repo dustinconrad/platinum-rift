@@ -23,6 +23,7 @@
 (defrecord Move [pods-count zone-origin zone-destination])
 (defrecord Purchase [pods-count zone-destination])
 (defrecord PlayerState [id platinum])
+(defrecord ContiguousArea [owner-id zone-ids])
 
 ;BEGIN READ INPUT
 
@@ -225,6 +226,62 @@
          (take purchases)
          (map #(->Purchase (quot pod-cnt purchases) %)))))
 
+(defn- ->contiguous-area [link-info game-state zone-id]
+  (let [owner-id (get-in game-state [zone-id :owner-id])
+        owner-pred (fn [z-id]
+                     (= owner-id
+                        (get-in game-state [z-id :owner-id])))]
+    (loop [visited #{}
+           q (conj (clojure.lang.PersistentQueue/EMPTY) zone-id)
+           acc #{}]
+      (if (empty? q)
+        (->ContiguousArea owner-id acc)
+        (let [z-id (peek q)
+              new-zones (->> (link-info z-id)
+                             (filter owner-pred)
+                             (remove visited))]
+          (recur
+            (conj visited z-id)
+            (into (pop q) new-zones)
+            (conj acc z-id)))))))
+
+(defn contiguous-areas [link-info game-state]
+  (loop [remaining-zones (set (keys link-info))
+         acc #{}]
+    (if (empty? remaining-zones)
+      acc
+      (let [z (first remaining-zones)
+            contiguous-area (->contiguous-area link-info game-state z)]
+        (recur
+          (disj (clj-set/difference remaining-zones (:zone-ids contiguous-area)) z)
+          (conj acc contiguous-area))))))
+
+(defn- contiguous-area-perimeter [link-info contiguous-area]
+  (let [zones (:zone-ids contiguous-area)]
+    (->> (mapcat link-info zones)
+         (remove zones)
+         set)))
+
+(defn contiguous-area-score [plat-info link-info game-state contiguous-area]
+  (let [income (->> (map plat-info (:zone-ids contiguous-area))
+                    (reduce + 0))
+        area (count (:zone-ids contiguous-area))
+        perimeter (max 1/2 (count (contiguous-area-perimeter link-info contiguous-area)))]
+    (+ income
+       (/ area perimeter))))
+
+(defn player-scores [plat-info link-info game-state]
+  (let [scores (reduce
+                 (fn [acc {:keys [owner-id] :as area}]
+                   (update-in
+                     acc
+                     [owner-id]
+                     (fnil + 0)
+                     (contiguous-area-score plat-info link-info game-state area)))
+                 {}
+                 (remove #(= neutral-zone-owner-id (:owner-id %)) (contiguous-areas link-info game-state)))]
+    scores))
+
 (defn -main [& args]
   (let [[player-count my-id zone-count link-count] (read-number-input-line)
         plat-info (initialize-platinum-info zone-count)
@@ -237,6 +294,10 @@
             zone-values (live-zone-values plat-info link-info my-id game-state frontier-map)
             moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
+
+        (dbg-v (->> (player-scores plat-info link-info game-state)
+                  (map #(vector (key %) (double (val %))))
+                  (into {})))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
