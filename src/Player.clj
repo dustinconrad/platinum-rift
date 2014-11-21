@@ -132,10 +132,10 @@
                      (clj-set/difference visited))]
         (recur
           ((fnil + 0)
-           (some->> (map plat-info q)
-                    (reduce +)
-                    (* modifier))
-           v)
+            (some->> (map plat-info q)
+                     (reduce +)
+                     (* modifier))
+            v)
           (inc d)
           (clj-set/union visited q)
           next)))))
@@ -249,7 +249,8 @@
   (loop [remaining-zones (set (keys link-info))
          acc #{}]
     (if (empty? remaining-zones)
-      acc
+      (->> (filter #(not= neutral-zone-owner-id (:owner-id %)) acc)
+           set)
       (let [z (first remaining-zones)
             contiguous-area (->contiguous-area link-info game-state z)]
         (recur
@@ -258,9 +259,35 @@
 
 (defn- contiguous-area-perimeter [link-info contiguous-area]
   (let [zones (:zone-ids contiguous-area)]
-    (->> (mapcat link-info zones)
-         (remove zones)
-         set)))
+    (-> (mapcat link-info zones)
+        set
+        (clj-set/difference zones))))
+
+(defn contiguous-area-ttz [link-info game-state {:keys [zone-ids] :as area}]
+  (let [perimeter (contiguous-area-perimeter link-info area)
+        enemy-perimeter (->> perimeter
+                             (filter #(not= neutral-zone-owner-id (get-in game-state [% :owner-id])))
+                             set)
+        neutral-perimeter (clj-set/difference perimeter enemy-perimeter)]
+    (loop [n 2
+           visited (->> (mapcat link-info enemy-perimeter)
+                        set
+                        (clj-set/intersection zone-ids))
+           acc (assoc {} 1 (clj-set/union neutral-perimeter visited))]
+      (if-let [n-1 (seq (acc (dec n)))]
+        (let [next (-> (mapcat link-info n-1)
+                       set
+                       (clj-set/intersection zone-ids)
+                       (clj-set/difference visited))]
+          (recur
+            (inc n)
+            (into visited next)
+            (update-in acc [n] clj-set/union next)))
+        (->> (mapcat
+               (fn [[k v]]
+                 (map #(vector % k) (filter zone-ids v)))
+               acc)
+             (into {}))))))
 
 (defn contiguous-area-score [plat-info link-info game-state contiguous-area]
   (let [income (->> (map plat-info (:zone-ids contiguous-area))
@@ -295,9 +322,9 @@
             moves (compute-moves link-info my-id game-state zone-values)
             purchases (compute-purchases link-info my-id platinum game-state zone-values)]
 
-        (dbg-v (->> (player-scores plat-info link-info game-state)
-                  (map #(vector (key %) (double (val %))))
-                  (into {})))
+        (let [area (first (contiguous-areas link-info game-state))]
+          (dbg area)
+          (dbg (contiguous-area-ttz link-info game-state area)))
 
         ; first line for movement commands, second line for POD purchase (see the protocol in the statement for details)
         (println (->moves-format moves))
