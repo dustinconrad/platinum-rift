@@ -246,6 +246,13 @@
             (into (pop q) new-zones)
             (conj acc z-id)))))))
 
+(defn zone-moves [link-info player-id game-state zone-id]
+  (let [eligible-neighbors-fn (fn [zid]
+                                (let [player-pods (get-in game-state [zid :pod-counts player-id])
+                                      zone-owner (get-in game-state [zid :owner-id])]
+                                  (when (pos? player-pods)
+                                    )))]))
+
 (defn contiguous-areas [link-info game-state]
   (loop [remaining-zones (set (keys link-info))
          acc #{}]
