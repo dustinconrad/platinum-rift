@@ -246,24 +246,28 @@
             (into (pop q) new-zones)
             (conj acc z-id)))))))
 
-(defn integer-partitions [n]
-  (if (<= n 1)
-    nil
-    (loop [acc {1 #{{1 1}}}
-           x 2]
-      (if (> x n)
-        (acc n)
-        (recur
-          (->> (range 1 (inc (quot x 2)))
-               (reduce
-                 (fn [combos i]
-                   (into
-                     combos
-                     (for [x-minus-i (acc (- x i)) x-at-i (acc i)]
-                       (merge-with + x-minus-i x-at-i))))
-                 #{{x 1}})
-               (assoc acc x))
-          (inc x))))))
+(defn integer-partitions [n max-partitions]
+  (let [max-partitions-filter (fn [m]
+                                (>= max-partitions (reduce + 0 (vals m))))]
+    (if (<= n 1)
+     nil
+     (loop [acc {1 #{{1 1}}}
+            x 2]
+       (if (> x n)
+         (acc n)
+         (recur
+           (->> (range 1 (inc (quot x 2)))
+                (reduce
+                  (fn [combos i]
+                    (into
+                      combos
+                      (for [x-minus-i (acc (- x i)) x-at-i (acc i)]
+                        (merge-with + x-minus-i x-at-i))))
+                  #{{x 1}})
+                (filter max-partitions-filter)
+                set
+                (assoc acc x))
+           (inc x)))))))
 
 (defn contiguous-areas [link-info game-state]
   (loop [remaining-zones (set (keys link-info))
