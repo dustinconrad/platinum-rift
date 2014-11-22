@@ -133,10 +133,10 @@
                      (clj-set/difference visited))]
         (recur
           ((fnil + 0)
-           (some->> (map plat-info q)
-                    (reduce +)
-                    (* modifier))
-           v)
+            (some->> (map plat-info q)
+                     (reduce +)
+                     (* modifier))
+            v)
           (inc d)
           (clj-set/union visited q)
           next)))))
@@ -246,12 +246,24 @@
             (into (pop q) new-zones)
             (conj acc z-id)))))))
 
-(defn zone-moves [link-info player-id game-state zone-id]
-  (let [eligible-neighbors-fn (fn [zid]
-                                (let [player-pods (get-in game-state [zid :pod-counts player-id])
-                                      zone-owner (get-in game-state [zid :owner-id])]
-                                  (when (pos? player-pods)
-                                    )))]))
+(defn integer-partitions [n]
+  (if (<= n 1)
+    nil
+    (loop [acc {1 #{{1 1}}}
+           x 2]
+      (if (> x n)
+        (acc n)
+        (recur
+          (->> (range 1 (inc (quot x 2)))
+               (reduce
+                 (fn [combos i]
+                   (into
+                     combos
+                     (for [x-minus-i (acc (- x i)) x-at-i (acc i)]
+                       (merge-with + x-minus-i x-at-i))))
+                 #{{x 1}})
+               (assoc acc x))
+          (inc x))))))
 
 (defn contiguous-areas [link-info game-state]
   (loop [remaining-zones (set (keys link-info))
